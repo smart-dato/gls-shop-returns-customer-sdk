@@ -11,12 +11,12 @@
  */
 
 use Dotenv\Dotenv;
-use SmartDato\GlsShopReturnsCustomer\Connectors\GlsShopReturnsConnector;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use SmartDato\GlsShopReturnsCustomer\Data\CreateReturnOrderData;
 use SmartDato\GlsShopReturnsCustomer\Data\ReturnOrderData;
 use SmartDato\GlsShopReturnsCustomer\Data\ReturnOrderWithLabelData;
 use SmartDato\GlsShopReturnsCustomer\Data\ReturnOrderWithQrCodeData;
-use SmartDato\GlsShopReturnsCustomer\Enums\Environment;
 use SmartDato\GlsShopReturnsCustomer\Enums\LabelFormat;
 use SmartDato\GlsShopReturnsCustomer\Enums\LabelType;
 use SmartDato\GlsShopReturnsCustomer\GlsShopReturnsCustomer;
@@ -35,26 +35,16 @@ function loadSandboxEnv(): void
     }
 }
 
-function sandboxConnector(): GlsShopReturnsConnector
+function sandboxSdk(): GlsShopReturnsCustomer
 {
     loadSandboxEnv();
 
-    return new GlsShopReturnsConnector(
-        environment: Environment::Sandbox,
-        clientId: env('GLS_CLIENT_ID'),
-        clientSecret: env('GLS_CLIENT_SECRET'),
-    );
-}
-
-function sandboxSdk(): GlsShopReturnsCustomer
-{
-    $connector = sandboxConnector();
-    $connector->refreshAuthenticator();
-
-    return new GlsShopReturnsCustomer(
-        connector: $connector,
-        appId: env('GLS_APP_ID', 'sandbox'),
-    );
+    return GlsShopReturnsCustomer::make([
+        'client_id' => env('GLS_CLIENT_ID'),
+        'client_secret' => env('GLS_CLIENT_SECRET'),
+        'app_id' => env('GLS_APP_ID', 'sandbox'),
+        'environment' => 'sandbox',
+    ]);
 }
 
 function sandboxReturnOrderData(): CreateReturnOrderData
@@ -75,27 +65,33 @@ function sandboxReturnOrderData(): CreateReturnOrderData
 }
 
 it('can obtain an OAuth token from the sandbox', function () {
+    Cache::forget('gls_shop_returns_oauth_token');
     loadSandboxEnv();
 
-    $connector = sandboxConnector();
-    $authenticator = $connector->getAccessToken();
+    $tokenResponse = Http::asForm()->post('https://api-sandbox.gls-group.net/oauth2/v2/token', [
+        'grant_type' => 'client_credentials',
+        'client_id' => env('GLS_CLIENT_ID'),
+        'client_secret' => env('GLS_CLIENT_SECRET'),
+    ]);
 
-    dump('Token type:', get_class($authenticator));
-    dump('Token expired:', $authenticator->hasExpired() ? 'yes' : 'no');
+    dump('Token HTTP status:', $tokenResponse->status());
+    dump('Token response:', $tokenResponse->json() ?? $tokenResponse->body());
 
-    expect($authenticator)->toBeInstanceOf(\Saloon\Contracts\OAuthAuthenticator::class)
-        ->and($authenticator->getAccessToken())->not->toBeEmpty();
+    expect($tokenResponse->successful())->toBeTrue();
+    expect($tokenResponse->json('access_token'))->not->toBeEmpty();
 })->group('sandbox')
     ->skip(fn () => ! sandboxAvailable(), 'Skipped: .env.testing not found');
 
 it('can create a return order in the sandbox', function () {
-    $sdk = sandboxSdk();
+    Cache::forget('gls_shop_returns_oauth_token');
 
+    $sdk = sandboxSdk();
     $response = $sdk->createReturnOrder(sandboxReturnOrderData());
 
     dump('Return Order ID:', $response->returnOrderId);
     dump('Track ID:', $response->references?->trackId ?? 'N/A');
     dump('Parcel ID:', $response->references?->parcelId ?? 'N/A');
+    dump('Raw HTTP status:', $sdk->lastResponse()?->status());
 
     expect($response)->toBeInstanceOf(ReturnOrderData::class)
         ->and($response->returnOrderId)->not->toBeEmpty();
@@ -103,8 +99,9 @@ it('can create a return order in the sandbox', function () {
     ->skip(fn () => ! sandboxAvailable(), 'Skipped: .env.testing not found');
 
 it('can create a return order with label (JSON) in the sandbox', function () {
-    $sdk = sandboxSdk();
+    Cache::forget('gls_shop_returns_oauth_token');
 
+    $sdk = sandboxSdk();
     $response = $sdk->createReturnOrderWithLabel(
         sandboxReturnOrderData(),
         LabelFormat::Pdf,
@@ -122,8 +119,9 @@ it('can create a return order with label (JSON) in the sandbox', function () {
     ->skip(fn () => ! sandboxAvailable(), 'Skipped: .env.testing not found');
 
 it('can create a return order with raw label in the sandbox', function () {
-    $sdk = sandboxSdk();
+    Cache::forget('gls_shop_returns_oauth_token');
 
+    $sdk = sandboxSdk();
     $rawPdf = $sdk->createReturnOrderWithRawLabel(
         sandboxReturnOrderData(),
         LabelFormat::Pdf,
@@ -137,6 +135,8 @@ it('can create a return order with raw label in the sandbox', function () {
     ->skip(fn () => ! sandboxAvailable(), 'Skipped: .env.testing not found');
 
 it('can retrieve a label for an existing return order in the sandbox', function () {
+    Cache::forget('gls_shop_returns_oauth_token');
+
     $sdk = sandboxSdk();
 
     // First create an order
@@ -160,8 +160,9 @@ it('can retrieve a label for an existing return order in the sandbox', function 
     ->skip(fn () => ! sandboxAvailable(), 'Skipped: .env.testing not found');
 
 it('can create a return order with QR code in the sandbox', function () {
-    $sdk = sandboxSdk();
+    Cache::forget('gls_shop_returns_oauth_token');
 
+    $sdk = sandboxSdk();
     $response = $sdk->createReturnOrderWithQrCode(sandboxReturnOrderData());
 
     dump('Return Order ID:', $response->returnOrderId);

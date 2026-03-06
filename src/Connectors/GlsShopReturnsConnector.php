@@ -2,29 +2,22 @@
 
 namespace SmartDato\GlsShopReturnsCustomer\Connectors;
 
-use Saloon\Contracts\OAuthAuthenticator;
-use Saloon\Helpers\OAuth2\OAuthConfig;
+use Saloon\Contracts\Authenticator;
 use Saloon\Http\Connector;
 use Saloon\Http\Response;
-use Saloon\Traits\OAuth2\ClientCredentialsGrant;
-use SmartDato\GlsShopReturnsCustomer\Enums\Environment;
+use SmartDato\GlsShopReturnsCustomer\Auth\GlsAuthenticator;
 use SmartDato\GlsShopReturnsCustomer\Exceptions\GlsApiException;
 
 class GlsShopReturnsConnector extends Connector
 {
-    use ClientCredentialsGrant;
-
-    private ?OAuthAuthenticator $cachedAuthenticator = null;
-
     public function __construct(
-        public readonly Environment $environment,
-        public readonly string $clientId,
-        public readonly string $clientSecret,
+        protected GlsAuthenticator $glsAuthenticator,
+        protected ?string $baseUrl = null,
     ) {}
 
     public function resolveBaseUrl(): string
     {
-        return $this->environment->baseUrl();
+        return $this->baseUrl ?? '';
     }
 
     protected function defaultHeaders(): array
@@ -34,34 +27,9 @@ class GlsShopReturnsConnector extends Connector
         ];
     }
 
-    protected function defaultOauthConfig(): OAuthConfig
+    protected function defaultAuth(): ?Authenticator
     {
-        return OAuthConfig::make()
-            ->setClientId($this->clientId)
-            ->setClientSecret($this->clientSecret)
-            ->setTokenEndpoint($this->environment->tokenUrl());
-    }
-
-    public function refreshAuthenticator(): void
-    {
-        // Skip if authenticator was set externally (e.g. in tests)
-        $existingAuth = $this->getAuthenticator();
-        if ($existingAuth !== null) {
-            if ($existingAuth instanceof OAuthAuthenticator && $existingAuth->hasExpired()) {
-                // Token expired, re-fetch
-            } else {
-                return;
-            }
-        }
-
-        if ($this->cachedAuthenticator && ! $this->cachedAuthenticator->hasExpired()) {
-            $this->authenticate($this->cachedAuthenticator);
-
-            return;
-        }
-
-        $this->cachedAuthenticator = $this->getAccessToken();
-        $this->authenticate($this->cachedAuthenticator);
+        return $this->glsAuthenticator;
     }
 
     public function getRequestException(Response $response, ?\Throwable $senderException): ?\Throwable

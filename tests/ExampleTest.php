@@ -1,5 +1,6 @@
 <?php
 
+use SmartDato\GlsShopReturnsCustomer\Auth\GlsAuthenticator;
 use SmartDato\GlsShopReturnsCustomer\Connectors\GlsShopReturnsConnector;
 use SmartDato\GlsShopReturnsCustomer\Data\CreateReturnOrderData;
 use SmartDato\GlsShopReturnsCustomer\Data\ReturnOrderData;
@@ -37,11 +38,13 @@ function createTestOrderData(): CreateReturnOrderData
 
 function createConnector(): GlsShopReturnsConnector
 {
-    return new GlsShopReturnsConnector(
-        environment: Environment::Sandbox,
+    $auth = new GlsAuthenticator(
         clientId: 'test-client-id',
         clientSecret: 'test-client-secret',
+        environment: Environment::Sandbox,
     );
+
+    return new GlsShopReturnsConnector($auth, Environment::Sandbox->baseUrl());
 }
 
 // --- Enum tests ---
@@ -172,19 +175,17 @@ it('resolves connector base url from environment', function () {
     expect($connector->resolveBaseUrl())->toBe('https://api-sandbox.gls-group.net/order-management/shop-returns/v3');
 });
 
-it('configures oauth config', function () {
+it('uses default auth from authenticator', function () {
     $connector = createConnector();
-    $config = $connector->oauthConfig();
 
-    expect($config->getClientId())->toBe('test-client-id')
-        ->and($config->getClientSecret())->toBe('test-client-secret')
-        ->and($config->getTokenEndpoint())->toContain('api-sandbox');
+    expect($connector->getAuthenticator())->toBeInstanceOf(GlsAuthenticator::class);
 });
 
 // --- SDK integration with MockClient ---
 
 it('creates return order via sdk with mock', function () {
     $connector = createConnector();
+    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
 
     $mockClient = new Saloon\Http\Faking\MockClient([
         CreateReturnOrderRequest::class => Saloon\Http\Faking\MockResponse::make([
@@ -194,18 +195,20 @@ it('creates return order via sdk with mock', function () {
     ]);
 
     $connector->withMockClient($mockClient);
-    $connector->authenticate(new Saloon\Http\Auth\AccessTokenAuthenticator('fake-token'));
 
     $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
     $result = $sdk->createReturnOrder(createTestOrderData());
 
     expect($result)->toBeInstanceOf(ReturnOrderData::class)
         ->and($result->returnOrderId)->toBe('order-456')
-        ->and($result->references->trackId)->toBe('TRACK-789');
+        ->and($result->references->trackId)->toBe('TRACK-789')
+        ->and($sdk->lastResponse())->not->toBeNull()
+        ->and($sdk->lastResponse()->status())->toBe(201);
 });
 
 it('creates return order with label via sdk with mock', function () {
     $connector = createConnector();
+    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
 
     $mockClient = new Saloon\Http\Faking\MockClient([
         CreateReturnOrderWithLabelRequest::class => Saloon\Http\Faking\MockResponse::make([
@@ -216,7 +219,6 @@ it('creates return order with label via sdk with mock', function () {
     ]);
 
     $connector->withMockClient($mockClient);
-    $connector->authenticate(new Saloon\Http\Auth\AccessTokenAuthenticator('fake-token'));
 
     $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
     $result = $sdk->createReturnOrderWithLabel(createTestOrderData(), LabelFormat::Pdf);
@@ -228,6 +230,7 @@ it('creates return order with label via sdk with mock', function () {
 
 it('throws gls api exception on error response', function () {
     $connector = createConnector();
+    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
 
     $mockClient = new Saloon\Http\Faking\MockClient([
         CreateReturnOrderRequest::class => Saloon\Http\Faking\MockResponse::make([
@@ -243,11 +246,24 @@ it('throws gls api exception on error response', function () {
     ]);
 
     $connector->withMockClient($mockClient);
-    $connector->authenticate(new Saloon\Http\Auth\AccessTokenAuthenticator('fake-token'));
 
     $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
     $sdk->createReturnOrder(createTestOrderData());
 })->throws(GlsApiException::class, 'must be one of [A4, A6]');
+
+// --- Factory tests ---
+
+it('creates sdk via make factory', function () {
+    $sdk = GlsShopReturnsCustomer::make([
+        'client_id' => 'test-id',
+        'client_secret' => 'test-secret',
+        'app_id' => 'sandbox',
+        'environment' => 'sandbox',
+    ]);
+
+    expect($sdk)->toBeInstanceOf(GlsShopReturnsCustomer::class)
+        ->and($sdk->connector()->resolveBaseUrl())->toContain('api-sandbox');
+});
 
 // --- Service provider tests ---
 
