@@ -7,3 +7,6 @@ parameters:
         - src
         - config
     tmpDir: build/phpstan
+    ignoreErrors:
+        - identifier: larastan.noEnvCallsOutsideOfConfig
+          path: config/*

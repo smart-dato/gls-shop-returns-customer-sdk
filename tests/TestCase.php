@@ -5,6 +5,7 @@ namespace SmartDato\GlsShopReturnsCustomer\Tests;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Orchestra\Testbench\TestCase as Orchestra;
 use SmartDato\GlsShopReturnsCustomer\GlsShopReturnsCustomerServiceProvider;
+use Spatie\LaravelData\LaravelDataServiceProvider;
 
 class TestCase extends Orchestra
 {
@@ -20,6 +21,7 @@ class TestCase extends Orchestra
     protected function getPackageProviders($app)
     {
         return [
+            LaravelDataServiceProvider::class,
             GlsShopReturnsCustomerServiceProvider::class,
         ];
     }
