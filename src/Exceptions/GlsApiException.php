@@ -38,7 +38,7 @@ class GlsApiException extends Exception
         }
 
         $message = match (true) {
-            ! empty($errors) => $errors[0]->message ?? "GLS API error ({$status})",
+            ! empty($errors) => self::formatErrors($errors, $status),
             isset($body['message']) => $body['message'],
             default => "GLS API error ({$status})",
         };
@@ -48,5 +48,22 @@ class GlsApiException extends Exception
             code: $status,
             errors: $errors,
         );
+    }
+
+    /**
+     * @param  ErrorData[]  $errors
+     */
+    protected static function formatErrors(array $errors, int $status): string
+    {
+        $messages = array_filter(array_map(
+            fn (ErrorData $error) => implode(': ', array_filter([$error->fieldName, $error->message])),
+            $errors,
+        ));
+
+        if (empty($messages)) {
+            return "GLS API error ({$status})";
+        }
+
+        return implode('; ', $messages);
     }
 }

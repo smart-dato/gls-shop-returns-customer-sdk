@@ -1,5 +1,8 @@
 <?php
 
+use Saloon\Http\Auth\TokenAuthenticator;
+use Saloon\Http\Faking\MockClient;
+use Saloon\Http\Faking\MockResponse;
 use SmartDato\GlsShopReturnsCustomer\Auth\GlsAuthenticator;
 use SmartDato\GlsShopReturnsCustomer\Connectors\GlsShopReturnsConnector;
 use SmartDato\GlsShopReturnsCustomer\Data\CreateReturnOrderData;
@@ -185,10 +188,10 @@ it('uses default auth from authenticator', function () {
 
 it('creates return order via sdk with mock', function () {
     $connector = createConnector();
-    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
 
-    $mockClient = new Saloon\Http\Faking\MockClient([
-        CreateReturnOrderRequest::class => Saloon\Http\Faking\MockResponse::make([
+    $mockClient = new MockClient([
+        CreateReturnOrderRequest::class => MockResponse::make([
             'returnOrderId' => 'order-456',
             'references' => ['trackId' => 'TRACK-789', 'parcelId' => '111222333444'],
         ], 201),
@@ -208,10 +211,10 @@ it('creates return order via sdk with mock', function () {
 
 it('creates return order with label via sdk with mock', function () {
     $connector = createConnector();
-    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
 
-    $mockClient = new Saloon\Http\Faking\MockClient([
-        CreateReturnOrderWithLabelRequest::class => Saloon\Http\Faking\MockResponse::make([
+    $mockClient = new MockClient([
+        CreateReturnOrderWithLabelRequest::class => MockResponse::make([
             'returnOrderId' => 'order-789',
             'label' => ['contentType' => 'application/pdf', 'content' => 'PDFCONTENT'],
             'references' => ['trackId' => 'TRACK-001'],
@@ -230,10 +233,10 @@ it('creates return order with label via sdk with mock', function () {
 
 it('throws gls api exception on error response', function () {
     $connector = createConnector();
-    $connector->authenticate(new Saloon\Http\Auth\TokenAuthenticator('fake-token'));
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
 
-    $mockClient = new Saloon\Http\Faking\MockClient([
-        CreateReturnOrderRequest::class => Saloon\Http\Faking\MockResponse::make([
+    $mockClient = new MockClient([
+        CreateReturnOrderRequest::class => MockResponse::make([
             'errors' => [
                 [
                     'type' => '400-UNKNOWN-KEY',
@@ -249,7 +252,80 @@ it('throws gls api exception on error response', function () {
 
     $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
     $sdk->createReturnOrder(createTestOrderData());
-})->throws(GlsApiException::class, 'must be one of [A4, A6]');
+})->throws(GlsApiException::class, 'layout: must be one of [A4, A6]');
+
+it('includes the field name of missing fields in the exception message', function () {
+    $connector = createConnector();
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
+
+    $mockClient = new MockClient([
+        CreateReturnOrderRequest::class => MockResponse::make([
+            'errors' => [
+                [
+                    'type' => '400-MISSING-FIELD',
+                    'fieldName' => 'sender.email',
+                    'message' => 'must not be null',
+                ],
+            ],
+        ], 400),
+    ]);
+
+    $connector->withMockClient($mockClient);
+
+    $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
+
+    expect(fn () => $sdk->createReturnOrder(createTestOrderData()))
+        ->toThrow(GlsApiException::class, 'sender.email: must not be null');
+});
+
+it('joins multiple errors in the exception message', function () {
+    $connector = createConnector();
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
+
+    $mockClient = new MockClient([
+        CreateReturnOrderRequest::class => MockResponse::make([
+            'errors' => [
+                [
+                    'type' => '400-MISSING-FIELD',
+                    'fieldName' => 'sender.email',
+                    'message' => 'must not be null',
+                ],
+                [
+                    'type' => '400-MISSING-FIELD',
+                    'fieldName' => 'parcel.weight',
+                    'message' => 'must not be null',
+                ],
+            ],
+        ], 400),
+    ]);
+
+    $connector->withMockClient($mockClient);
+
+    $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
+
+    expect(fn () => $sdk->createReturnOrder(createTestOrderData()))
+        ->toThrow(GlsApiException::class, 'sender.email: must not be null; parcel.weight: must not be null');
+});
+
+it('falls back to a generic message when errors carry no details', function () {
+    $connector = createConnector();
+    $connector->authenticate(new TokenAuthenticator('fake-token'));
+
+    $mockClient = new MockClient([
+        CreateReturnOrderRequest::class => MockResponse::make([
+            'errors' => [
+                ['type' => '400-UNKNOWN'],
+            ],
+        ], 400),
+    ]);
+
+    $connector->withMockClient($mockClient);
+
+    $sdk = new GlsShopReturnsCustomer($connector, 'sandbox');
+
+    expect(fn () => $sdk->createReturnOrder(createTestOrderData()))
+        ->toThrow(GlsApiException::class, 'GLS API error (400)');
+});
 
 // --- Factory tests ---
 
