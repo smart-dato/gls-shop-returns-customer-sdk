@@ -2,15 +2,15 @@
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/smart-dato/gls-shop-returns-customer-sdk.svg?style=flat-square)](https://packagist.org/packages/smart-dato/gls-shop-returns-customer-sdk)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/smart-dato/gls-shop-returns-customer-sdk/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/smart-dato/gls-shop-returns-customer-sdk/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/smart-dato/gls-shop-returns-customer-sdk/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/smart-dato/gls-shop-returns-customer-sdk/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/smart-dato/gls-shop-returns-customer-sdk/code-style.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/smart-dato/gls-shop-returns-customer-sdk/actions?query=workflow%3A%22Code+style%22+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/smart-dato/gls-shop-returns-customer-sdk.svg?style=flat-square)](https://packagist.org/packages/smart-dato/gls-shop-returns-customer-sdk)
 
-Laravel package for integrating with the GLS Shop Returns Customer API v3. Supports generating return labels and parcel shop QR codes across European countries. Built on [Saloon 3.x](https://docs.saloon.dev) for HTTP and [Spatie Laravel Data 4.x](https://spatie.be/docs/laravel-data) for DTOs.
+Laravel package for integrating with the GLS Shop Returns Customer API v3. Supports generating return labels and parcel shop QR codes across European countries. Built on [Saloon 4.x](https://docs.saloon.dev) for HTTP and [Spatie Laravel Data 4.x](https://spatie.be/docs/laravel-data) for DTOs.
 
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11 or 12
+- Laravel 11 – 13
 
 ## Supported Countries
 
@@ -251,10 +251,6 @@ To run tests against the real GLS sandbox API:
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
 
 ## Security Vulnerabilities
 
